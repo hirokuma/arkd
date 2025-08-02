@@ -53,28 +53,28 @@ func findSweepableOutputs(
 					ctx, parentTxid,
 				)
 				if !isConfirmed || err != nil {
-					log.Debugf("KUMA: findSweepableOutputs: not found %s: %v", parentTxid, err)
+					log.Debugf("KUMA: findSweepableOutputs(preconf): not found %s: %v", parentTxid, err)
 					return false, fmt.Errorf("tx %s not found", parentTxid)
 				}
 
 				if schedulerUnit == ports.BlockHeight {
-					log.Debugf("KUMA: findSweepableOutputs: ブロック高: height=%d", height)
+					log.Debugf("KUMA: findSweepableOutputs(preconf): ブロック高: height=%d", height)
 					blocktimeCache[parentTxid] = height
 				} else {
-					log.Debugf("KUMA: findSweepableOutputs: 時間: blocktime=%d", blocktime)
+					log.Debugf("KUMA: findSweepableOutputs(preconf): 時間: blocktime=%d", blocktime)
 					blocktimeCache[parentTxid] = blocktime
 				}
 			}
 
-			log.Debugf("KUMA: findSweepableOutputs: building sweepable batch output script")
+			log.Debugf("KUMA: findSweepableOutputs(preconf): building sweepable batch output script")
 			vtxoTreeExpiry, sweepInput, err := txbuilder.GetSweepableBatchOutputs(g)
 			if err != nil {
-				log.Debugf("KUMA: findSweepableOutputs: GetSweepableBatchOutputs error: %v", err)
+				log.Debugf("KUMA: findSweepableOutputs(preconf): GetSweepableBatchOutputs error: %v", err)
 				return false, err
 			}
 
 			expirationTime := blocktimeCache[parentTxid] + int64(vtxoTreeExpiry.Value)
-			log.Debugf("KUMA: findSweepableOutputs: blockTimeCache=%d + vtxoTreeExpiry=%d = expirationTime=%d", blocktimeCache[parentTxid], int64(vtxoTreeExpiry.Value), expirationTime)
+			log.Debugf("KUMA: findSweepableOutputs(preconf): blockTimeCache=%d + vtxoTreeExpiry=%d = expirationTime=%d", blocktimeCache[parentTxid], int64(vtxoTreeExpiry.Value), expirationTime)
 			if _, ok := sweepableBatchOutputs[expirationTime]; !ok {
 				sweepableBatchOutputs[expirationTime] = make([]ports.SweepableBatchOutput, 0)
 			}
@@ -82,19 +82,21 @@ func findSweepableOutputs(
 				sweepableBatchOutputs[expirationTime], sweepInput,
 			)
 			// we don't need to check the children, we already found a sweepable output
+			log.Debugf("KUMA: findSweepableOutputs(preconf): we don't need to check the children, we already found a sweepable output")
 			return false, nil
 		}
 
 		// cache the blocktime for future use
 		if schedulerUnit == ports.BlockHeight {
-			log.Debugf("KUMA: findSweepableOutputs 2: ブロック高=%d", height)
+			log.Debugf("KUMA: findSweepableOutputs(conf): ブロック高=%d", height)
 			blocktimeCache[g.Root.UnsignedTx.TxID()] = height
 		} else {
-			log.Debugf("KUMA: findSweepableOutputs 2: 時間=%d", blocktime)
+			log.Debugf("KUMA: findSweepableOutputs(conf): 時間=%d", blocktime)
 			blocktimeCache[g.Root.UnsignedTx.TxID()] = blocktime
 		}
 
 		// if the tx is onchain, it means that the input is spent, we need to check the children
+		log.Debugf("KUMA: findSweepableOutputs(conf): if the tx is onchain, it means that the input is spent, we need to check the children")
 		return true, nil
 	}); err != nil {
 		log.Debugf("KUMA: err vtxoTree.Apply: %v", err)
