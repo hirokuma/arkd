@@ -41,6 +41,9 @@ func findSweepableOutputs(
 			log.Debugf("KUMA: findSweepableOutputs: IsTransactionConfirmed error: %v", err)
 			return false, err
 		}
+		log.Debugf("KUMA: findSweepableOutputs: tx %s isConfirmed=%t height=%d blocktime=%d",
+			g.Root.UnsignedTx.TxID(), isConfirmed, height, blocktime,
+		)
 
 		if !isConfirmed {
 			parentTxid := g.Root.UnsignedTx.TxIn[0].PreviousOutPoint.Hash.String()
@@ -55,10 +58,10 @@ func findSweepableOutputs(
 				}
 
 				if schedulerUnit == ports.BlockHeight {
-					log.Debugf("KUMA: findSweepableOutputs: ブロック高")
+					log.Debugf("KUMA: findSweepableOutputs: ブロック高: height=%d", height)
 					blocktimeCache[parentTxid] = height
 				} else {
-					log.Debugf("KUMA: findSweepableOutputs: 時間")
+					log.Debugf("KUMA: findSweepableOutputs: 時間: blocktime=%d", blocktime)
 					blocktimeCache[parentTxid] = blocktime
 				}
 			}
@@ -71,6 +74,7 @@ func findSweepableOutputs(
 			}
 
 			expirationTime := blocktimeCache[parentTxid] + int64(vtxoTreeExpiry.Value)
+			log.Debugf("KUMA: findSweepableOutputs: blockTimeCache=%d + vtxoTreeExpiry=%d = expirationTime=%d", blocktimeCache[parentTxid], int64(vtxoTreeExpiry.Value), expirationTime)
 			if _, ok := sweepableBatchOutputs[expirationTime]; !ok {
 				sweepableBatchOutputs[expirationTime] = make([]ports.SweepableBatchOutput, 0)
 			}
@@ -83,10 +87,10 @@ func findSweepableOutputs(
 
 		// cache the blocktime for future use
 		if schedulerUnit == ports.BlockHeight {
-			log.Debugf("KUMA: findSweepableOutputs 2: ブロック高")
+			log.Debugf("KUMA: findSweepableOutputs 2: ブロック高=%d", height)
 			blocktimeCache[g.Root.UnsignedTx.TxID()] = height
 		} else {
-			log.Debugf("KUMA: findSweepableOutputs 2: 時間")
+			log.Debugf("KUMA: findSweepableOutputs 2: 時間=%d", blocktime)
 			blocktimeCache[g.Root.UnsignedTx.TxID()] = blocktime
 		}
 

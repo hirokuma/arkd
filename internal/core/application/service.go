@@ -2031,7 +2031,7 @@ func (s *service) propagateRoundSigningNoncesGeneratedEvent(
 
 func (s *service) scheduleSweepBatchOutput(round *domain.Round) {
 	// Schedule the sweeping procedure only for completed round.
-	log.Debugf("KUMA[%s]: scheduleSweepBatchOutput", round.Id)
+	log.Debugf("KUMA[%s]: scheduleSweepBatchOutput()", round.Id)
 	if !round.IsEnded() {
 		log.Debugf("KUMA: !round.IsEnded(): %s", round.Id)
 		return
@@ -2056,6 +2056,7 @@ func (s *service) scheduleSweepBatchOutput(round *domain.Round) {
 		return
 	}
 
+	log.Debugf("KUMA[%s]: scheduleSweepBatchOutput(): expirationTimestamp=%d", round.Id, expirationTimestamp)
 	if err := s.sweeper.schedule(expirationTimestamp, round.CommitmentTxid, vtxoTree); err != nil {
 		log.WithError(err).Warn("failed to schedule sweep tx")
 	}
