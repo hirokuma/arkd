@@ -650,7 +650,9 @@ func (c *Config) appService() error {
 
 func (c *Config) adminService() error {
 	unit := ports.UnixTime
+	log.Debugf("KUMA: c.VtxoTreeExpiry.Value=%d, minAllowedSequence=%d", c.VtxoTreeExpiry.Value, minAllowedSequence)
 	if c.VtxoTreeExpiry.Value < minAllowedSequence {
+		log.Debugf("KUMA: VtxoTreeExpiryの単位は秒ではなくブロック数")
 		unit = ports.BlockHeight
 	}
 

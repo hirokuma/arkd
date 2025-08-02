@@ -17,6 +17,7 @@ import (
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -132,6 +133,7 @@ func AggregateKeys(pubkeys []*btcec.PublicKey, tweak []byte) (*musig2.AggregateK
 		if pubkey == nil {
 			return nil, errors.New("nil pubkey")
 		}
+		log.Debugf("KUMA: AggregateKeys(): pubkey: %x", pubkey.SerializeCompressed())
 	}
 
 	// if there is only one pubkey, fallback to classic P2TR
@@ -159,6 +161,7 @@ func AggregateKeys(pubkeys []*btcec.PublicKey, tweak []byte) (*musig2.AggregateK
 	if err != nil {
 		return nil, err
 	}
+	log.Debugf("KUMA: AggregateKeys(): FinalKey: %x", key.FinalKey.SerializeCompressed())
 
 	return key, nil
 }

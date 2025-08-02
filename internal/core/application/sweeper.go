@@ -84,6 +84,8 @@ func (s *sweeper) start() error {
 		}
 
 		log.Infof("sweeper: scheduled sweeping for %d batches", count)
+	} else {
+		log.Infof("KUMA: no sweepable batches")
 	}
 
 	return nil
@@ -104,6 +106,7 @@ func (s *sweeper) removeTask(treeRootTxid string) {
 func (s *sweeper) schedule(
 	expirationTimestamp int64, commitmentTxid string, vtxoTree *tree.TxTree,
 ) error {
+	log.Debugf("KUMA[%s]: schedule", commitmentTxid)
 	if vtxoTree == nil { // skip
 		log.Debugf("skip shceduling sweep for batch %s:0, empty vtxo tree", commitmentTxid)
 		return nil
@@ -138,7 +141,14 @@ func (s *sweeper) schedule(
 func (s *sweeper) createTask(
 	commitmentTxid string, vtxoTree *tree.TxTree,
 ) func() {
+	{
+		v1, _ := vtxoTree.Serialize()
+		v2, _ := vtxoTree.SerializeNode()
+		log.Debugf("KUMA[%s]: createTask: vtxoTree: %v", commitmentTxid, v1)
+		log.Debugf("KUMA[%s]: createTask: vtxoTreeNode: %v", commitmentTxid, v2)
+	}
 	return func() {
+		log.Debugf("KUMA[%s]: createTask in callback function", commitmentTxid)
 		ctx := context.Background()
 		rootTxid := vtxoTree.Root.UnsignedTx.TxID()
 		round, err := s.repoManager.Rounds().GetRoundWithCommitmentTxid(ctx, commitmentTxid)
@@ -146,6 +156,7 @@ func (s *sweeper) createTask(
 			log.WithError(err).Error("failed to get round")
 			return
 		}
+		log.Debugf("KUMA[%s]: createTask: round id=%s", commitmentTxid, round.Id)
 
 		s.removeTask(rootTxid)
 		log.Tracef("sweeper: %s", rootTxid)
@@ -162,15 +173,22 @@ func (s *sweeper) createTask(
 			return
 		}
 
+		log.Debugf("KUMA[%s]: createTask: batchOutputs %d", commitmentTxid, len(batchOutputs))
 		for expiredAt, inputs := range batchOutputs {
 			// if the batch outputs are not expired, schedule a sweep task for it
+			log.Debugf(
+				"KUMA[%s]: createTask: batch outputs expired at %d, inputs: %d",
+				commitmentTxid, expiredAt, len(inputs),
+			)
 			if s.scheduler.AfterNow(expiredAt) {
+				log.Debugf("KUMA[%s]: createTask: AfterNow! expiredAt=%d", commitmentTxid, expiredAt)
 				subtrees, err := computeSubTrees(vtxoTree, inputs)
 				if err != nil {
 					log.WithError(err).Error("error while computing subtrees")
 					continue
 				}
 
+				log.Debugf("KUMA[%s]: createTask: subtrees %d", commitmentTxid, len(subtrees))
 				for _, subTree := range subtrees {
 					if err := s.schedule(expiredAt, commitmentTxid, subTree); err != nil {
 						log.WithError(err).Error("error while scheduling sweep task")
@@ -181,6 +199,7 @@ func (s *sweeper) createTask(
 			}
 
 			// iterate over the expired batch outputs
+			log.Debugf("KUMA[%s]: createTask: inputs %d", commitmentTxid, len(inputs))
 			for _, input := range inputs {
 				// sweepableVtxos related to the sweep input
 				sweepableVtxos := make([]domain.Outpoint, 0)
@@ -197,6 +216,7 @@ func (s *sweeper) createTask(
 						},
 					},
 				)
+				log.Debugf("KUMA[%s]: createTask: input %d, vtxos %d", commitmentTxid, input.GetIndex(), len(vtxos))
 				if len(vtxos) > 0 {
 					if !vtxos[0].Swept && !vtxos[0].Unrolled {
 						sweepableVtxos = append(sweepableVtxos, vtxos[0].Outpoint)
@@ -236,6 +256,7 @@ func (s *sweeper) createTask(
 					}
 				}
 
+				log.Debugf("KUMA[%s]: createTask: input %d, sweepableVtxos %d", commitmentTxid, input.GetIndex(), len(sweepableVtxos))
 				if len(sweepableVtxos) > 0 {
 					vtxoKeys = append(vtxoKeys, sweepableVtxos...)
 					sweepInputs = append(sweepInputs, input)
@@ -243,6 +264,7 @@ func (s *sweeper) createTask(
 			}
 		}
 
+		log.Debugf("KUMA[%s]: createTask: sweepInputs %d", commitmentTxid, len(sweepInputs))
 		if len(sweepInputs) > 0 {
 			// build the sweep transaction with all the expired non-swept batch outputs
 			sweepTxId, sweepTx, err := s.builder.BuildSweepTx(sweepInputs)
@@ -250,6 +272,7 @@ func (s *sweeper) createTask(
 				log.WithError(err).Error("error while building sweep tx")
 				return
 			}
+			log.Debugf("KUMA[%s]: createTask: sweepTxId %s", commitmentTxid, sweepTxId)
 
 			// check if the transaction is already onchain
 			tx, _ := s.wallet.GetTransaction(ctx, sweepTxId)
@@ -268,6 +291,7 @@ func (s *sweeper) createTask(
 					time.Sleep(5 * time.Second)
 				}
 
+				log.Debugf("KUMA[%s]: createTask() broadcast sweepTx", round.Id)
 				txid, err = s.wallet.BroadcastTransaction(ctx, sweepTx)
 			}
 			if err != nil {
@@ -301,6 +325,8 @@ func (s *sweeper) createTask(
 func (s *sweeper) updateVtxoExpirationTime(
 	tree *tree.TxTree, expirationTime int64,
 ) error {
+	log.Debugf("KUMA: updateVtxoExpirationTime, %d", expirationTime)
+
 	leaves := tree.Leaves()
 	vtxos := make([]domain.Outpoint, 0)
 
@@ -319,12 +345,22 @@ func (s *sweeper) updateVtxoExpirationTime(
 func computeSubTrees(
 	vtxoTree *tree.TxTree, inputs []ports.SweepableBatchOutput,
 ) ([]*tree.TxTree, error) {
+	log.Debugf("KUMA: computeSubTrees: inputs %d", len(inputs))
+	{
+		v1, _ := vtxoTree.Serialize()
+		v2, _ := vtxoTree.SerializeNode()
+		log.Debugf("KUMA: computeSubTrees: vtxoTree: %v", v1)
+		log.Debugf("KUMA: computeSubTrees: vtxoTreeNode: %v", v2)
+	}
 	subTrees := make(map[string]*tree.TxTree, 0)
 
 	// for each sweepable input, create a sub vtxo tree
 	// it allows to skip the part of the tree that has been broadcasted in the next task
 	for _, input := range inputs {
-		if subTree := vtxoTree.Find(input.GetHash().String()); subTree != nil {
+		// if subTree := vtxoTree.Find(input.GetHash().String()); subTree != nil {
+		subTree := vtxoTree.Find(input.GetHash().String())
+		log.Debugf("KUMA: computeSubTrees: input %s:%d, subTree %v", input.GetHash().String(), input.GetIndex(), subTree)
+		if subTree != nil {
 			rootTxid := subTree.Root.UnsignedTx.TxID()
 			subTrees[rootTxid] = subTree
 		}

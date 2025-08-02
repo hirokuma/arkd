@@ -84,6 +84,7 @@ func (s *service) AfterNow(expiry int64) bool {
 	if err != nil {
 		return false
 	}
+	log.Debugf("AfterNow(block): expiry: %d, tip height: %d", expiry, tip)
 
 	return expiry > tip
 }

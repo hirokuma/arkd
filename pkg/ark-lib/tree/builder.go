@@ -12,6 +12,7 @@ import (
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -22,6 +23,14 @@ const (
 // BuildBatchOutput returns the taproot script and amount of a batch output of the commiment tx.
 // The radix of the vtxo tree is hardcoded to 2.
 func BuildBatchOutput(receivers []Leaf, sweepTapTreeRoot []byte) ([]byte, int64, error) {
+	log.Debugf("KUMA: BuildBatchOutput(): Building batch output with %d receivers", len(receivers))
+	for i := 0; i < len(receivers); i++ {
+		log.Debugf("KUMA: BuildBatchOutput(): Receiver[%d]: %s, amount: %d, script: %s, cosigners: %v",
+			i, receivers[i].Script, receivers[i].Amount, receivers[i].Script,
+			receivers[i].CosignersPublicKeys)
+	}
+	log.Debugf("KUMA: BuildBatchOutput(): Sweep taproot tree root: %s", hex.EncodeToString(sweepTapTreeRoot))
+
 	root, err := createTxTree(receivers, sweepTapTreeRoot, vtxoTreeRadix)
 	if err != nil {
 		return nil, 0, err
@@ -29,10 +38,15 @@ func BuildBatchOutput(receivers []Leaf, sweepTapTreeRoot []byte) ([]byte, int64,
 
 	amount := root.getAmount() + txutils.ANCHOR_VALUE
 
+	log.Debugf("KUMA: BuildBatchOutput(): MuSig signers: %d", len(root.getCosigners()))
+	for i, cosigner := range root.getCosigners() {
+		log.Debugf("KUMA: BuildBatchOutput(): Cosigner[%d]: %s", i, hex.EncodeToString(schnorr.SerializePubKey(cosigner)))
+	}
 	aggregatedKey, err := AggregateKeys(root.getCosigners(), sweepTapTreeRoot)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to aggregate keys: %w", err)
 	}
+	log.Debugf("KUMA: BuildBatchOutput(): Aggregated key: %s", hex.EncodeToString(schnorr.SerializePubKey(aggregatedKey.FinalKey)))
 
 	scriptPubkey, err := script.P2TRScript(aggregatedKey.FinalKey)
 	if err != nil {

@@ -12,6 +12,7 @@ import (
 	"github.com/arkade-os/arkd/pkg/ark-lib/script"
 	"github.com/arkade-os/arkd/pkg/ark-lib/tree"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
+	log "github.com/sirupsen/logrus"
 )
 
 type AdminService interface {
@@ -123,6 +124,7 @@ func (a *adminService) GetScheduledSweeps(ctx context.Context) ([]ScheduledSweep
 
 	scheduledSweeps := make([]ScheduledSweep, 0, len(sweepableRounds))
 	for _, commitmentTxid := range sweepableRounds {
+		log.Debugf("KUMA[%s]: loop GetScheduledSweeps", commitmentTxid)
 		round, err := a.repoManager.Rounds().GetRoundWithCommitmentTxid(ctx, commitmentTxid)
 		if err != nil {
 			return nil, err
@@ -133,6 +135,7 @@ func (a *adminService) GetScheduledSweeps(ctx context.Context) ([]ScheduledSweep
 			return nil, err
 		}
 
+		log.Debugf("KUMA[%s]: GetScheduledSweeps", commitmentTxid)
 		batchOutsByExpiration, err := findSweepableOutputs(
 			ctx, a.walletSvc, a.txBuilder, a.sweeperTimeUnit, vtxoTree,
 		)

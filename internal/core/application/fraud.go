@@ -90,6 +90,8 @@ func (s *service) broadcastCheckpointTx(ctx context.Context, vtxo domain.Vtxo) e
 		return fmt.Errorf("failed to bump checkpoint tx: %s", err)
 	}
 
+	log.Debugf("KUMA: broadcastCheckpointTx() %s, broadcasting checkpoint tx %s with child %s",
+		vtxo.Outpoint.String(), checkpointTx.TxHash().String(), child)
 	if _, err := s.wallet.BroadcastTransaction(ctx, ptx, child); err != nil {
 		return fmt.Errorf("failed to broadcast checkpoint package: %s", err)
 	}
@@ -163,6 +165,8 @@ func (s *service) broadcastForfeitTx(ctx context.Context, vtxo domain.Vtxo) erro
 		return fmt.Errorf("failed to bump forfeit tx: %s", err)
 	}
 
+	log.Debugf("KUMA: broadcastForfeitTx() %s, broadcasting forfeit tx %s with child %s",
+		vtxo.Outpoint.String(), forfeit.TxHash().String(), childForfeit)
 	if _, err = s.wallet.BroadcastTransaction(ctx, forfeitTxHex, childForfeit); err != nil {
 		return fmt.Errorf("failed to broadcast forfeit tx: %s", err)
 	}
@@ -220,6 +224,8 @@ func (s *service) broadcastConnectorBranch(
 				return false, fmt.Errorf("failed to bump anchor tx: %s", err)
 			}
 
+			log.Debugf("KUMA: broadcastConnectorBranch() %s, broadcasting connector branch tx with child %s",
+				connectorOutpoint.String(), child)
 			_, err = s.wallet.BroadcastTransaction(ctx, parent, child)
 			if err != nil {
 				return false, fmt.Errorf("failed to broadcast transaction: %s", err)

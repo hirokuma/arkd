@@ -27,14 +27,18 @@ func findSweepableOutputs(
 	ctx context.Context, walletSvc ports.WalletService, txbuilder ports.TxBuilder,
 	schedulerUnit ports.TimeUnit, vtxoTree *tree.TxTree,
 ) (map[int64][]ports.SweepableBatchOutput, error) {
+	log.Debugf("KUMA: findSweepableOutputs")
+
 	sweepableBatchOutputs := make(map[int64][]ports.SweepableBatchOutput)
 	blocktimeCache := make(map[string]int64) // txid -> blocktime / blockheight
 
 	if err := vtxoTree.Apply(func(g *tree.TxTree) (bool, error) {
+		log.Debugf("KUMA: findSweepableOutputs: vtxoTree.Apply")
 		isConfirmed, height, blocktime, err := walletSvc.IsTransactionConfirmed(
 			ctx, g.Root.UnsignedTx.TxID(),
 		)
 		if err != nil {
+			log.Debugf("KUMA: findSweepableOutputs: IsTransactionConfirmed error: %v", err)
 			return false, err
 		}
 
@@ -46,18 +50,23 @@ func findSweepableOutputs(
 					ctx, parentTxid,
 				)
 				if !isConfirmed || err != nil {
+					log.Debugf("KUMA: findSweepableOutputs: not found %s: %v", parentTxid, err)
 					return false, fmt.Errorf("tx %s not found", parentTxid)
 				}
 
 				if schedulerUnit == ports.BlockHeight {
+					log.Debugf("KUMA: findSweepableOutputs: ブロック高")
 					blocktimeCache[parentTxid] = height
 				} else {
+					log.Debugf("KUMA: findSweepableOutputs: 時間")
 					blocktimeCache[parentTxid] = blocktime
 				}
 			}
 
+			log.Debugf("KUMA: findSweepableOutputs: building sweepable batch output script")
 			vtxoTreeExpiry, sweepInput, err := txbuilder.GetSweepableBatchOutputs(g)
 			if err != nil {
+				log.Debugf("KUMA: findSweepableOutputs: GetSweepableBatchOutputs error: %v", err)
 				return false, err
 			}
 
@@ -74,17 +83,21 @@ func findSweepableOutputs(
 
 		// cache the blocktime for future use
 		if schedulerUnit == ports.BlockHeight {
+			log.Debugf("KUMA: findSweepableOutputs 2: ブロック高")
 			blocktimeCache[g.Root.UnsignedTx.TxID()] = height
 		} else {
+			log.Debugf("KUMA: findSweepableOutputs 2: 時間")
 			blocktimeCache[g.Root.UnsignedTx.TxID()] = blocktime
 		}
 
 		// if the tx is onchain, it means that the input is spent, we need to check the children
 		return true, nil
 	}); err != nil {
+		log.Debugf("KUMA: err vtxoTree.Apply: %v", err)
 		return nil, err
 	}
 
+	log.Debugf("KUMA: findSweepableOutputs: exit with %d sweepable outputs", len(sweepableBatchOutputs))
 	return sweepableBatchOutputs, nil
 }
 

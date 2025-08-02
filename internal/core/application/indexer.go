@@ -11,6 +11,7 @@ import (
 	"github.com/arkade-os/arkd/pkg/ark-lib/tree"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil/psbt"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -91,6 +92,8 @@ func (i *indexerService) GetVtxoTree(
 		return nil, err
 	}
 
+	log.Debugf("KUMA: GetVtxoTree %s: %v", batchOutpoint.Txid, vtxoTree)
+
 	txs, pageResp := paginate(vtxoTree, page, maxPageSizeVtxoTree)
 	return &TreeTxResp{
 		Txs:  txs,
@@ -157,11 +160,13 @@ func (i *indexerService) GetVtxos(
 		(spentOnly && recoverableOnly) {
 		return nil, fmt.Errorf("spendable, spent and recoverable filters are mutually exclusive")
 	}
+	log.Debugf("KUMA: GetVtxo pubkey=%s: spendableOnly=%v, spentOnly=%v, recoverableOnly=%v", pubkeys, spendableOnly, spentOnly, recoverableOnly)
 
 	allVtxos, err := i.repoManager.Vtxos().GetAllVtxosWithPubKeys(ctx, pubkeys)
 	if err != nil {
 		return nil, err
 	}
+	log.Debugf("KUMA: GetVtxo pubkey=%s: allVtxos=%d", pubkeys, len(allVtxos))
 
 	if spendableOnly {
 		spendableVtxos := make([]domain.Vtxo, 0, len(allVtxos))
@@ -190,6 +195,7 @@ func (i *indexerService) GetVtxos(
 		}
 		allVtxos = recoverableVtxos
 	}
+	log.Debugf("KUMA: GetVtxo pubkey=%s: allVtxos=%v", pubkeys, allVtxos)
 
 	vtxos, pageResp := paginate(allVtxos, page, maxPageSizeSpendableVtxos)
 	return &GetVtxosResp{

@@ -159,6 +159,7 @@ func NewService(
 		wg:                        &sync.WaitGroup{},
 	}
 
+	log.Debugf("KUMA: repoManager.Events().RegisterEventsHandler")
 	repoManager.Events().RegisterEventsHandler(
 		domain.RoundTopic, func(events []domain.Event) {
 			round := domain.NewRoundFromEvents(events)
@@ -195,6 +196,7 @@ func NewService(
 				}
 			}()
 
+			log.Debugf("KUMA[%s]: RegisterEventsHandler", round.Id)
 			go svc.scheduleSweepBatchOutput(round)
 		},
 	)
@@ -1137,6 +1139,7 @@ func (s *service) GetInfo(ctx context.Context) (*ServiceInfo, error) {
 		}
 	}
 
+	log.Debugf("KUMA: int64(s.vtxoTreeExpiry.Value)=%d", int64(s.vtxoTreeExpiry.Value))
 	return &ServiceInfo{
 		SignerPubKey:        signerPubkey,
 		VtxoTreeExpiry:      int64(s.vtxoTreeExpiry.Value),
@@ -1861,6 +1864,7 @@ func (s *service) finalizeRound(roundTiming roundTiming) {
 		return
 	}
 
+	log.Debugf("KUMA[%s]: finalizeRound() commitment transaction signed", roundId)
 	if _, err := s.wallet.BroadcastTransaction(ctx, signedCommitmentTx); err != nil {
 		changes = s.cache.CurrentRound().Fail(
 			fmt.Errorf("failed to broadcast commitment tx: %s", err),
@@ -2027,12 +2031,15 @@ func (s *service) propagateRoundSigningNoncesGeneratedEvent(
 
 func (s *service) scheduleSweepBatchOutput(round *domain.Round) {
 	// Schedule the sweeping procedure only for completed round.
+	log.Debugf("KUMA[%s]: scheduleSweepBatchOutput", round.Id)
 	if !round.IsEnded() {
+		log.Debugf("KUMA: !round.IsEnded(): %s", round.Id)
 		return
 	}
 
 	// if the round doesn't have a batch vtxo output, we do not need to sweep it
 	if len(round.VtxoTree) <= 0 {
+		log.Debugf("KUMA[%s]: no VtxoTree, skipping sweep", round.Id)
 		return
 	}
 

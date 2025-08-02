@@ -21,6 +21,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	log "github.com/sirupsen/logrus"
 )
 
 type txBuilder struct {
@@ -249,6 +250,7 @@ func (b *txBuilder) FinalizeAndExtract(tx string) (string, error) {
 func (b *txBuilder) BuildSweepTx(
 	inputs []ports.SweepableBatchOutput,
 ) (txid, signedSweepTx string, err error) {
+	log.Debugf("KUMA: BuildSweepTx: inputs %d", len(inputs))
 	sweepPsbt, err := sweepTransaction(
 		b.wallet,
 		inputs,
@@ -521,6 +523,8 @@ func (b *txBuilder) BuildCommitmentTx(
 	var batchOutputScript []byte
 	var batchOutputAmount int64
 
+	log.Debugf("KUMA: BuildCommitmentTx: intents %d, cosigners %d", len(intents), len(cosignersPublicKeys))
+
 	receivers, err := getOutputVtxosLeaves(intents, cosignersPublicKeys)
 	if err != nil {
 		return "", nil, "", nil, err
@@ -539,12 +543,15 @@ func (b *txBuilder) BuildCommitmentTx(
 	sweepTapscriptRoot := txscript.NewBaseTapLeaf(sweepScript).TapHash()
 
 	if !intents.HaveOnlyOnchainOutput() {
+		log.Debugf("KUMA: BuildCommitmentTx: building batch output script")
 		batchOutputScript, batchOutputAmount, err = tree.BuildBatchOutput(
 			receivers, sweepTapscriptRoot[:],
 		)
 		if err != nil {
 			return "", nil, "", nil, err
 		}
+	} else {
+		log.Debugf("KUMA: BuildCommitmentTx: no batch output script")
 	}
 
 	nbOfConnectors := intents.CountSpentVtxos()
@@ -600,12 +607,15 @@ func (b *txBuilder) BuildCommitmentTx(
 			})
 		}
 
+		log.Debugf("KUMA: BuildCommitmentTx: building connector output script")
 		connectorsTreePkScript, connectorsTreeAmount, err = tree.BuildConnectorOutput(
 			connectorsTreeLeaves,
 		)
 		if err != nil {
 			return "", nil, "", nil, err
 		}
+	} else {
+		log.Debugf("KUMA: BuildCommitmentTx: no connector output script")
 	}
 
 	ptx, err := b.createCommitmentTx(
@@ -660,6 +670,7 @@ func (b *txBuilder) BuildCommitmentTx(
 func (b *txBuilder) GetSweepableBatchOutputs(
 	vtxoTree *tree.TxTree,
 ) (vtxoTreeExpiry *arklib.RelativeLocktime, sweepInput ports.SweepableBatchOutput, err error) {
+	log.Debugf("KUMA: GetSweepableBatchOutputs: vtxoTree %s", vtxoTree.Root.UnsignedTx.TxID())
 	if len(vtxoTree.Root.UnsignedTx.TxIn) != 1 {
 		return nil, nil, fmt.Errorf(
 			"invalid node psbt, expect 1 input, got %d", len(vtxoTree.Root.UnsignedTx.TxIn),
@@ -674,6 +685,11 @@ func (b *txBuilder) GetSweepableBatchOutputs(
 	if err != nil {
 		return nil, nil, err
 	}
+	log.Debugf("KUMA: GetSweepableBatchOutputs:\n  leaf.script %s\n  leaf.controlBlock %s\n  internal key %s",
+		hex.EncodeToString(sweepLeaf.Script),
+		hex.EncodeToString(sweepLeaf.ControlBlock),
+		hex.EncodeToString(schnorr.SerializePubKey(internalKey)),
+	)
 
 	txhex, err := b.wallet.GetTransaction(context.Background(), txid.String())
 	if err != nil {

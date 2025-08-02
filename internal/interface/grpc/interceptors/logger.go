@@ -10,7 +10,7 @@ import (
 func unaryLogger(
 	ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler,
 ) (interface{}, error) {
-	log.Debugf("gRPC method: %s", info.FullMethod)
+	log.Debugf("gRPC method: %s, req: %v", info.FullMethod, req)
 	return handler(ctx, req)
 }
 
