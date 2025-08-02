@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"syscall"
+	"time"
 
 	arklib "github.com/arkade-os/arkd/pkg/ark-lib"
 	arksdk "github.com/arkade-os/go-sdk"
@@ -369,6 +371,21 @@ func balance(ctx *cli.Context) error {
 	bal, err := arkSdkClient.Balance(ctx.Context, computeExpiration)
 	if err != nil {
 		return err
+	}
+	cfgData, err := arkSdkClient.GetConfigData(ctx.Context)
+	if err != nil {
+		return err
+	}
+	if cfgData.VtxoTreeExpiry.Type == arklib.LocktimeTypeBlock {
+		minExpiry := int64(math.MaxInt64)
+		for i, detail := range bal.OffchainBalance.Details {
+			tm, _ := time.Parse("2006-01-02T15:04:05-07:00", detail.ExpiryTime)
+			fmt.Printf("* VTXO[%d] amount=%d sats, expire=%d block\n", i, detail.Amount, tm.Unix())
+			if tm.Unix() < minExpiry {
+				minExpiry = tm.Unix()
+			}
+		}
+		fmt.Printf("next_expiration=%d block\n\n", minExpiry)
 	}
 	return printJSON(bal)
 }
